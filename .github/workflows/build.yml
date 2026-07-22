@@ -56,9 +56,7 @@ jobs:
         run: |
           cmake --build native/build/android-arm64 --parallel
           test -f native/build/android-arm64/chg_daemon
-          "$ANDROID_HOME/ndk/${NDK_VERSION}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-all native/build/android-arm64/chg_daemon
           readelf -h native/build/android-arm64/chg_daemon | grep -q "AArch64"
-          echo "chg_daemon size: $(stat --printf='%s' native/build/android-arm64/chg_daemon) bytes"
 
       - name: Assemble KernelSU module ZIP
         id: package
@@ -80,7 +78,7 @@ jobs:
 
           (
             cd "${package_dir}"
-            zip -9 -r "../../${archive}" .
+            zip -r "../../${archive}" .
           )
           echo "artifact_name=O-Pulse-${version}-arm64-v8a" >> "$GITHUB_OUTPUT"
           echo "archive=${archive}" >> "$GITHUB_OUTPUT"

@@ -17,8 +17,8 @@ done
 mkdir -p "$RUNDIR"
 chmod 0755 "$MODDIR/webroot" "$MODDIR/webroot/assets" 2>/dev/null
 
-# WebUI 可獨立使用；原生采集器将在 Phase 1 加入。
 if [ ! -x "$DAEMON_BIN" ]; then
+  echo "O-Pulse service: collector is missing or not executable: $DAEMON_BIN" > "$LOG_FILE"
   exit 0
 fi
 
@@ -27,6 +27,6 @@ if [ -f "$PID_FILE" ] && is_running "$(cat "$PID_FILE")"; then
 fi
 
 rm -f "$PID_FILE"
-: > "$LOG_FILE"
+echo "O-Pulse service: starting collector" > "$LOG_FILE"
 "$DAEMON_BIN" --state-file "$RUNDIR/state.json" --interval 5 --offline-interval 10 >> "$LOG_FILE" 2>&1 &
 echo $! > "$PID_FILE"

@@ -273,6 +273,19 @@ std::optional<double> scaled(const std::string& raw, double divisor) {
   return value ? std::optional<double>(*value / divisor) : std::nullopt;
 }
 
+std::optional<double> input_current_amperes(const std::string& raw, std::string& unit) {
+  const auto value = number(raw);
+  if (!value) return std::nullopt;
+
+  // power_supply current_now is commonly microamps, while Oplus private nodes use milliamps.
+  if (std::abs(*value) >= 10000.0) {
+    unit = "ua(auto)";
+    return *value / 1000000.0;
+  }
+  unit = "ma(auto)";
+  return *value / 1000.0;
+}
+
 std::optional<double> thermal_celsius(const std::string& raw) {
   const auto value = integer(raw);
   if (!value) return std::nullopt;
@@ -385,8 +398,10 @@ Snapshot collect(const ThermalPaths& thermal_paths, const Config& config, Stats&
     const double multiplier = config.cell_type == 1 ? 2.0 : 1.0;
     snapshot.current_a = std::abs(*battery_current_raw) * multiplier / 1000.0;
   }
-  snapshot.input_current_a = scaled(snapshot.raw["input_current_raw"], 1000.0);
+  std::string input_current_unit;
+  snapshot.input_current_a = input_current_amperes(snapshot.raw["input_current_raw"], input_current_unit);
   snapshot.input_current_source = input_current_path;
+  snapshot.raw["input_current_unit"] = input_current_unit.empty() ? "unavailable" : input_current_unit;
   if (snapshot.voltage_bat_v && snapshot.current_a) snapshot.cell_power_w = *snapshot.voltage_bat_v * *snapshot.current_a;
   std::string pps_unit;
   snapshot.pps_w = pps_power_w(snapshot.raw["ppschg_power"], config.pps_power_unit, pps_unit);
@@ -801,6 +816,8 @@ int main(int argc, char** argv) {
   std::signal(SIGTERM, handle_signal);
   try {
     const ThermalPaths paths = discover_thermal_paths();
+    std::cerr << "O-Pulse daemon: started; state_file=" << config.state_file
+              << "; interval=" << config.interval_seconds << "s\n";
     Stats stats;
     Watchdog watchdog;
     auto next_sample = std::chrono::steady_clock::now();
@@ -819,6 +836,7 @@ int main(int argc, char** argv) {
       const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(next_sample - std::chrono::steady_clock::now()).count();
       usleep(static_cast<useconds_t>(std::clamp<long long>(remaining, 1, 1000) * 1000));
     }
+    std::cerr << "O-Pulse daemon: stopped\n";
   } catch (const std::exception& error) {
     std::cerr << "O-Pulse daemon: " << error.what() << '\n';
     return 1;
