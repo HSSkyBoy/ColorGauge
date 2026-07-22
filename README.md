@@ -38,27 +38,6 @@ OPPO、OnePlus 和 realme 的 ColorOS、OxygenOS、realme UI 设备。
 3. 选择 ZIP，完成后重启设备。
 4. 重启后，在 KernelSU 的模块列表打开 O-Pulse WebUI。
 
-## 🏗️ 架构
-
-```text
-┌──────────────────────────────────────────────────────┐
-│ KernelSU Manager WebUI                                │
-│ HTML / CSS / Vanilla JavaScript / Canvas chart        │
-└───────────────────────┬──────────────────────────────┘
-                        │ KernelSU Shell bridge
-                        │ cat run/state.json
-┌───────────────────────▼──────────────────────────────┐
-│ O-Pulse daemon (C++20)                                │
-│ SysFS scan · CSV parser · statistics · atomic snapshot│
-└───────────────┬───────────────────────┬──────────────┘
-                │                       │
-     /sys/class/power_supply/*  /data/vendor/battery/*.csv
-     /sys/class/oplus_chg/*
-```
-
-daemon 以临时文件加 `fsync` 和 `rename` 原子发布 `run/state.json`。WebUI 每两秒经
-KernelSU Shell bridge 读取该快照；不会开启 TCP 端口，也不使用 WebSocket。
-
 ## 🔧 构建
 
 构建需要 Android NDK，然后执行：

@@ -4,6 +4,7 @@ MODDIR=${0%/*}
 DAEMON_BIN="$MODDIR/bin/chg_daemon"
 RUNDIR="$MODDIR/run"
 PID_FILE="$RUNDIR/chg_daemon.pid"
+LOG_FILE="$RUNDIR/daemon.log"
 
 is_running() {
   [ -n "$1" ] && kill -0 "$1" 2>/dev/null
@@ -26,5 +27,6 @@ if [ -f "$PID_FILE" ] && is_running "$(cat "$PID_FILE")"; then
 fi
 
 rm -f "$PID_FILE"
-"$DAEMON_BIN" --state-file "$RUNDIR/state.json" --interval 5 --offline-interval 10 >/dev/null 2>&1 &
+: > "$LOG_FILE"
+"$DAEMON_BIN" --state-file "$RUNDIR/state.json" --interval 5 --offline-interval 10 >> "$LOG_FILE" 2>&1 &
 echo $! > "$PID_FILE"

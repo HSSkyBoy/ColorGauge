@@ -1,6 +1,7 @@
 (() => {
   const history = [];
   const maxHistory = 150;
+  const maxStateAgeMs = 15000;
   let mockTimer;
   let pollTimer;
   let requestInFlight = false;
@@ -122,9 +123,9 @@
     ctx.stroke();
   }
 
-  function startMock() {
+  function startMock(reason = "采集器离线") {
+    setConnection(`模拟数据 - ${reason}`, false);
     if (mockTimer) return;
-    setConnection("模拟数据 - 采集器离线", false);
     render(mockPayload());
     mockTimer = setInterval(() => render(mockPayload()), 2000);
   }
@@ -132,11 +133,11 @@
   function stopMock() { clearInterval(mockTimer); mockTimer = null; }
 
   function kernelSuExec(command) {
-    const bridge = window.ksu?.exec || window.kernelsu?.exec;
-    if (!bridge) return Promise.reject(new Error("KernelSU Shell bridge unavailable"));
-    return Promise.resolve(bridge(command)).then((result) => {
+    const bridgeOwner = window.ksu?.exec ? window.ksu : window.kernelsu?.exec ? window.kernelsu : null;
+    if (!bridgeOwner) return Promise.reject(new Error("KernelSU Shell bridge 不可用"));
+    return Promise.resolve(bridgeOwner.exec(command)).then((result) => {
       if (typeof result === "string") return result;
-      if (result?.errno && result.errno !== 0) throw new Error(result.stderr || "Shell command failed");
+      if (result?.errno && result.errno !== 0) throw new Error(result.stderr || "状态文件不可读");
       return result?.stdout ?? result?.output ?? "";
     });
   }
@@ -147,11 +148,15 @@
     try {
       const raw = await kernelSuExec("cat /data/adb/modules/o_pulse/run/state.json");
       const payload = JSON.parse(raw.trim());
+      const timestamp = Date.parse(payload.timestamp);
+      if (!Number.isFinite(timestamp) || Date.now() - timestamp > maxStateAgeMs) {
+        throw new Error("采集器状态已过期");
+      }
       stopMock();
       setConnection("实时采集器已连接", true);
       render(payload);
-    } catch (_) {
-      startMock();
+    } catch (error) {
+      startMock(error?.message || "采集器离线");
     } finally {
       requestInFlight = false;
     }
