@@ -17,8 +17,8 @@ done
 mkdir -p "$RUNDIR"
 chmod 0755 "$MODDIR/webroot" "$MODDIR/webroot/assets" 2>/dev/null
 
-if [ ! -x "$COLLECTOR_BIN" ]; then
-  echo "O-Pulse service: collector is missing or not executable: $COLLECTOR_BIN" > "$LOG_FILE"
+if [ ! -f "$COLLECTOR_BIN" ]; then
+  echo "O-Pulse service: collector is missing: $COLLECTOR_BIN" > "$LOG_FILE"
   exit 0
 fi
 
@@ -27,6 +27,8 @@ if [ -f "$PID_FILE" ] && is_running "$(cat "$PID_FILE")"; then
 fi
 
 rm -f "$PID_FILE"
-echo "O-Pulse service: starting shell collector" > "$LOG_FILE"
-"$COLLECTOR_BIN" --state-file "$RUNDIR/state.json" --interval 10 --offline-interval 10 >> "$LOG_FILE" 2>&1 &
+echo "O-Pulse service: module_dir=$MODDIR" > "$LOG_FILE"
+echo "O-Pulse service: state_file=$RUNDIR/state.json" >> "$LOG_FILE"
+echo "O-Pulse service: starting shell collector via /system/bin/sh" >> "$LOG_FILE"
+/system/bin/sh "$COLLECTOR_BIN" --state-file "$RUNDIR/state.json" --interval 10 --offline-interval 10 >> "$LOG_FILE" 2>&1 &
 echo $! > "$PID_FILE"

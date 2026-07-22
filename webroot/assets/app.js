@@ -2,6 +2,14 @@
   const history = [];
   const maxHistory = 150;
   const maxStateAgeMs = 25000;
+  const moduleRoot = (() => {
+    const path = window.location?.pathname || "";
+    const marker = "/webroot/";
+    const index = path.indexOf(marker);
+    return index >= 0 ? path.slice(0, index) : "/data/adb/modules/o_pulse";
+  })();
+  const statePath = `${moduleRoot}/run/state.json`;
+  const logPath = `${moduleRoot}/run/collector.log`;
   let mockTimer = null;
   let pollTimer = null;
   let requestInFlight = false;
@@ -64,6 +72,16 @@
     const box = el("connection");
     box.classList.toggle("live", live);
     el("connection-text").textContent = label;
+  }
+
+  async function tryReadLog() {
+    try {
+      const raw = await kernelSuExec(`tail -n 20 ${logPath}`);
+      const text = raw.trim();
+      return text ? text.split("\n").slice(-1)[0] : "";
+    } catch {
+      return "";
+    }
   }
 
   function renderThermals(thermals) {
@@ -212,7 +230,7 @@
     if (requestInFlight) return;
     requestInFlight = true;
     try {
-      const raw = await kernelSuExec("cat /data/adb/modules/o_pulse/run/state.json");
+      const raw = await kernelSuExec(`cat ${statePath}`);
       const payload = JSON.parse(raw.trim());
       const timestamp = Date.parse(payload.timestamp);
       if (!Number.isFinite(timestamp) || Date.now() - timestamp > maxStateAgeMs) {
@@ -222,7 +240,8 @@
       setConnection("实时采集器已连接", true);
       render(payload);
     } catch (error) {
-      startMock(error?.message || "采集器离线");
+      const detail = await tryReadLog();
+      startMock(detail || error?.message || "采集器离线");
     } finally {
       requestInFlight = false;
     }
