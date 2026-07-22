@@ -43,6 +43,8 @@ struct Config {
   bool exit_when_offline = false;
   bool exit_when_capacity_stalled = false;
   std::string state_file = "/data/adb/modules/o_pulse/run/state.json";
+  std::string input_current_node;
+  std::string pps_power_unit = "auto";
 };
 
 struct ThermalPaths {
@@ -101,6 +103,7 @@ struct Snapshot {
   std::optional<double> current_a;
   std::optional<double> input_current_a;
   std::optional<double> power_w;
+  std::optional<double> cell_power_w;
   std::optional<double> pps_w;
   std::optional<double> battery_temp_c;
   std::optional<double> usb_temp_c;
@@ -112,6 +115,8 @@ struct Snapshot {
   std::optional<double> locked_mah;
   std::optional<double> locked_percent;
   std::optional<double> health_percent;
+  std::string input_current_source;
+  std::string power_source;
   std::string eta_text;
 };
 
@@ -275,6 +280,25 @@ std::optional<double> thermal_celsius(const std::string& raw) {
   return static_cast<double>(milli == 0 ? *value / 100 : milli);
 }
 
+bool active_charge_signal(const std::string& value) {
+  return !value.empty() && value != "0" && value != "--" && value != "N/A";
+}
+
+std::optional<double> pps_power_w(const std::string& raw, const std::string& unit, std::string& resolved_unit) {
+  const auto value = number(raw);
+  if (!value || *value <= 0) return std::nullopt;
+  if (unit == "uw") {
+    resolved_unit = "uw";
+    return *value / 1000000.0;
+  }
+  if (unit == "mw") {
+    resolved_unit = "mw";
+    return *value / 1000.0;
+  }
+  resolved_unit = *value > 200000.0 ? "uw(auto)" : "mw(auto)";
+  return *value > 200000.0 ? *value / 1000000.0 : *value / 1000.0;
+}
+
 std::string iso_timestamp() {
   const std::time_t now = std::time(nullptr);
   std::tm utc {};
@@ -318,6 +342,9 @@ Snapshot collect(const ThermalPaths& thermal_paths, const Config& config, Stats&
   add_node(snapshot, "usb_voltage_now", "/sys/class/power_supply/usb/voltage_now", "0");
   add_node(snapshot, "battery_current_now", "/sys/class/power_supply/battery/current_now", "0");
   add_node(snapshot, "usb_current_now", "/sys/class/power_supply/usb/current_now", "0");
+  const std::string input_current_path = config.input_current_node.empty() ? "/sys/class/power_supply/usb/current_now" : config.input_current_node;
+  add_node(snapshot, "input_current_raw", input_current_path, "0");
+  snapshot.raw["input_current_source"] = input_current_path;
   add_node(snapshot, "ppschg_power", "/sys/devices/virtual/oplus_chg/battery/ppschg_power", "0");
   add_node(snapshot, "bdd_voltdiff_trend", "/sys/class/oplus_chg/battery/bdd_voltdiff_trend", "");
   add_node(snapshot, "vbat_voltdiff", "/sys/class/oplus_chg/battery/vbat_voltdiff", "0");
@@ -334,7 +361,6 @@ Snapshot collect(const ThermalPaths& thermal_paths, const Config& config, Stats&
   snapshot.raw["thermal_gpu_raw"] = read_node(thermal_paths.gpu, "0");
   snapshot.raw["thermal_shell_raw"] = read_node(thermal_paths.shell, "0");
 
-  snapshot.usb_online = integer(snapshot.raw["usb_online"]).value_or(0) != 0;
   snapshot.full = integer(snapshot.raw["battery_notify_code"]).value_or(0) != 0;
   const auto rm = number(snapshot.raw["battery_rm"]);
   const auto fcc = number(snapshot.raw["battery_fcc"]);
@@ -345,15 +371,37 @@ Snapshot collect(const ThermalPaths& thermal_paths, const Config& config, Stats&
   snapshot.voltage_max_v = scaled(snapshot.raw["usb_voltage_max"], 1000000.0);
   snapshot.voltage_bat_v = scaled(snapshot.raw["battery_voltage_now"], 1000000.0);
   snapshot.voltage_usb_v = scaled(snapshot.raw["usb_voltage_now"], 1000000.0);
+  const bool standard_usb_online = integer(snapshot.raw["usb_online"]).value_or(0) != 0;
+  const bool usb_voltage_present = snapshot.voltage_usb_v && *snapshot.voltage_usb_v >= 4.0;
+  const bool protocol_active = active_charge_signal(snapshot.raw["fast_chg_type"]) ||
+                               active_charge_signal(snapshot.raw["svooc_flag"]) ||
+                               active_charge_signal(snapshot.raw["chg_mmi_status"]);
+  snapshot.usb_online = standard_usb_online && (usb_voltage_present || protocol_active);
+  snapshot.raw["usb_online_standard"] = standard_usb_online ? "1" : "0";
+  snapshot.raw["usb_voltage_present"] = usb_voltage_present ? "1" : "0";
+  snapshot.raw["usb_protocol_active"] = protocol_active ? "1" : "0";
   const auto battery_current_raw = number(snapshot.raw["battery_current_now"]);
   if (battery_current_raw) {
     const double multiplier = config.cell_type == 1 ? 2.0 : 1.0;
     snapshot.current_a = std::abs(*battery_current_raw) * multiplier / 1000.0;
   }
-  snapshot.input_current_a = scaled(snapshot.raw["usb_current_now"], 1000.0);
-  if (snapshot.voltage_bat_v && snapshot.current_a) snapshot.power_w = *snapshot.voltage_bat_v * *snapshot.current_a;
-  if (const auto raw_pps = number(snapshot.raw["ppschg_power"]); raw_pps && *raw_pps > 0) {
-    snapshot.pps_w = *raw_pps > 200000.0 ? *raw_pps / 1000000.0 : *raw_pps / 1000.0;
+  snapshot.input_current_a = scaled(snapshot.raw["input_current_raw"], 1000.0);
+  snapshot.input_current_source = input_current_path;
+  if (snapshot.voltage_bat_v && snapshot.current_a) snapshot.cell_power_w = *snapshot.voltage_bat_v * *snapshot.current_a;
+  std::string pps_unit;
+  snapshot.pps_w = pps_power_w(snapshot.raw["ppschg_power"], config.pps_power_unit, pps_unit);
+  snapshot.raw["ppschg_power_unit"] = pps_unit.empty() ? "unavailable" : pps_unit;
+  if (snapshot.pps_w && *snapshot.pps_w >= 0.5 && *snapshot.pps_w <= 300.0) {
+    snapshot.power_w = snapshot.pps_w;
+    snapshot.power_source = "ppschg_power";
+  } else if (snapshot.voltage_usb_v && snapshot.input_current_a && *snapshot.voltage_usb_v > 0 && *snapshot.input_current_a > 0) {
+    snapshot.power_w = *snapshot.voltage_usb_v * *snapshot.input_current_a;
+    snapshot.power_source = "usb_voltage_current";
+  } else if (snapshot.cell_power_w) {
+    snapshot.power_w = snapshot.cell_power_w;
+    snapshot.power_source = "battery_cell_estimate";
+  } else {
+    snapshot.power_source = "unavailable";
   }
 
   snapshot.battery_temp_c = scaled(snapshot.raw["battery_temp"], 10.0);
@@ -455,6 +503,7 @@ std::string snapshot_json(const Snapshot& snapshot, const Stats& stats) {
          << ",\"voltage_mv\":" << json_number(snapshot.voltage_bat_v ? std::optional<double>(*snapshot.voltage_bat_v * 1000.0) : std::nullopt)
          << ",\"current_ma\":" << json_number(snapshot.current_a ? std::optional<double>(*snapshot.current_a * 1000.0) : std::nullopt)
          << ",\"temperature_c\":" << json_number(snapshot.battery_temp_c)
+         << ",\"cell_power_w\":" << json_number(snapshot.cell_power_w)
          << ",\"current_mah\":" << json_number(number(raw_value(snapshot, "battery_rm")))
          << ",\"remaining_to_full_mah\":" << json_number(snapshot.remaining_mah)
          << ",\"full_charge_mah\":" << json_number(number(raw_value(snapshot, "battery_fcc")))
@@ -476,12 +525,15 @@ std::string snapshot_json(const Snapshot& snapshot, const Stats& stats) {
          << ",\"usb_voltage_mv\":" << json_number(snapshot.voltage_usb_v ? std::optional<double>(*snapshot.voltage_usb_v * 1000.0) : std::nullopt)
          << ",\"usb_voltage_max_mv\":" << json_number(snapshot.voltage_max_v ? std::optional<double>(*snapshot.voltage_max_v * 1000.0) : std::nullopt)
          << ",\"usb_current_ma\":" << json_number(snapshot.input_current_a ? std::optional<double>(*snapshot.input_current_a * 1000.0) : std::nullopt)
+         << ",\"usb_current_source\":" << json_string(snapshot.input_current_source)
          << ",\"power_w\":" << json_number(snapshot.power_w)
+         << ",\"power_source\":" << json_string(snapshot.power_source)
          << ",\"pps_power_w\":" << json_number(snapshot.pps_w)
          << ",\"eta\":" << json_string(snapshot.eta_text)
          << ",\"bdd_voltdiff_trend\":" << json_string(raw_value(snapshot, "bdd_voltdiff_trend"))
          << ",\"vbat_voltdiff_mv\":" << json_number(number(raw_value(snapshot, "vbat_voltdiff"))) << "}"
-         << ",\"thermals\":{\"usb_c\":" << json_number(snapshot.usb_temp_c)
+         << ",\"thermals\":{\"battery_c\":" << json_number(snapshot.battery_temp_c)
+         << ",\"usb_c\":" << json_number(snapshot.usb_temp_c)
          << ",\"vooc_c\":" << json_number(snapshot.vooc_temp_c)
          << ",\"cpu_c\":" << json_number(snapshot.cpu_temp_c)
          << ",\"gpu_c\":" << json_number(snapshot.gpu_temp_c)
@@ -703,7 +755,7 @@ bool write_state_file(const std::string& path, const std::string& json) {
 void handle_signal(int) { g_running = false; }
 
 void print_usage() {
-  std::cout << "Usage: chg_daemon [--state-file path] [--interval seconds] [--offline-interval seconds] [--cell-type 0|1] [--capacity-timeout seconds] [--offline-action slow|exit] [--stalled-action continue|exit]\n";
+  std::cout << "Usage: chg_daemon [--state-file path] [--interval seconds] [--offline-interval seconds] [--cell-type 0|1] [--input-current-node path] [--ppschg-unit auto|uw|mw] [--capacity-timeout seconds] [--offline-action slow|exit] [--stalled-action continue|exit]\n";
 }
 
 bool parse_args(int argc, char** argv, Config& config) {
@@ -715,6 +767,12 @@ bool parse_args(int argc, char** argv, Config& config) {
     if (argument == "--state-file") {
       if (value.empty() || value.front() != '/') return false;
       config.state_file = value;
+    } else if (argument == "--input-current-node") {
+      if (value.empty() || value.front() != '/') return false;
+      config.input_current_node = value;
+    } else if (argument == "--ppschg-unit") {
+      if (value != "auto" && value != "uw" && value != "mw") return false;
+      config.pps_power_unit = value;
     } else if (argument == "--interval") {
       const auto parsed = integer(value); if (!parsed || *parsed < 1) return false; config.interval_seconds = static_cast<int>(*parsed);
     } else if (argument == "--offline-interval") {

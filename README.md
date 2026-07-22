@@ -1,46 +1,97 @@
-# O-Pulse
+# ⚡ O-Pulse
 
-O-Pulse 是面向 Oplus 设备充电、電池、温控与厂商 battery-log 遥测数据的
-KernelSU WebUI 模块。当前仓库提供模块外壳与支持离线预览的 Dashboard 原型；
-原生采集器已迁移至 `native/`；发布模块前需使用 Android NDK 编译并放入 `bin/`。
+**O-Pulse** 是面向 **Oplus** 设备的 KernelSU WebUI 电池与温控监控模块，适用于
+OPPO、OnePlus 和 realme 的 ColorOS、OxygenOS、realme UI 设备。
 
-## 安装目录
+不需要安装独立 App。刷入模块并重启后，可直接从 KernelSU 管理器打开仪表盘，查看
+充电、电池、温度和厂商日志数据。
 
-KernelSU 从 `webroot/` 提供 WebUI 文件，因此本项目遵循官方目录布局，
-而不是使用单独的 `webui/ksu.json` 清单：
+> 不同机型公开的 SysFS 节点并不一致。缺失的温区或电池字段会显示为 `N/A`，不会阻止
+> 模块运行。
+
+## ✨ 功能
+
+- **功率与电流**：显示 USB 电压、输入电流、电芯电流及输入功率。功率优先采用
+  `ppschg_power`，其次为 USB 电压乘输入电流，最后才标注为电芯侧估算值。
+- **多区域温度**：读取电池、USB、VOOC MOS、CPU、GPU 和机身温区；温区节点带有
+  Oplus 常见名称的 fallback。
+- **电池状态**：汇总 UI SOC、Chip SOC、Gauge SOC、剩余容量、FCC、设计容量、SOH、
+  健康度、锁容估算和预计充满时间。
+- **CSV 日志**：解析最新 `/data/vendor/battery/battery-log-*.csv` 的表头与最后一行，
+  在 WebUI 中以可搜索的键值网格展示。
+- **低频采集**：C++ daemon 直接读取 SysFS 和 CSV，在线默认每 5 秒采样；断开 USB 后
+  降至 10 秒。
+
+## 🛠️ 安装
+
+### 前置条件
+
+- 支持 WebUI 的 Root 管理器，如 KernelSU, SuikSU Ultra，Magisk 可以用 WebUI 模组。
+- Oplus 系统设备。其他 Android 设备可以安装，但大部分厂商专属字段可能不可用。
+- 仅支援 `arm64-v8a` 设备。
+
+### 步骤
+
+1. 在 [Releases](../../releases) 或 GitHub Actions artifact 下载
+   `O-Pulse-*-arm64-v8a.zip`。
+2. 打开 KernelSU 管理器，进入「模块」并选择「安装模块」。
+3. 选择 ZIP，完成后重启设备。
+4. 重启后，在 KernelSU 的模块列表打开 O-Pulse WebUI。
+
+## 🏗️ 架构
 
 ```text
-o_pulse/
-  module.prop
-  customize.sh
-  service.sh
-  uninstall.sh
-  skip_mount
-  bin/chg_daemon              # 编译后的原生采集器
-  native/                     # C++20 采集器源代码
-  webroot/index.html          # KernelSU WebUI 入口
-  webroot/assets/
+┌──────────────────────────────────────────────────────┐
+│ KernelSU Manager WebUI                                │
+│ HTML / CSS / Vanilla JavaScript / Canvas chart        │
+└───────────────────────┬──────────────────────────────┘
+                        │ KernelSU Shell bridge
+                        │ cat run/state.json
+┌───────────────────────▼──────────────────────────────┐
+│ O-Pulse daemon (C++20)                                │
+│ SysFS scan · CSV parser · statistics · atomic snapshot│
+└───────────────┬───────────────────────┬──────────────┘
+                │                       │
+     /sys/class/power_supply/*  /data/vendor/battery/*.csv
+     /sys/class/oplus_chg/*
 ```
 
-`service.sh` 会等待系统启动完成，并且仅在 `bin/chg_daemon` 存在且可执行时
-启动采集器。采集器会原子写入 `run/state.json`，WebUI 通过 KernelSU Shell bridge
-读取该快照；`uninstall.sh` 仅终止此模块记录的 PID。
+daemon 以临时文件加 `fsync` 和 `rename` 原子发布 `run/state.json`。WebUI 每两秒经
+KernelSU Shell bridge 读取该快照；不会开启 TCP 端口，也不使用 WebSocket。
 
-## 状态文件契约
+## 🔧 构建
 
-采集器每 2-5 秒原子写入一个完整 JSON 对象。Dashboard 每两秒通过 KernelSU 的
-Shell bridge 读取快照；采集器或 bridge 不可用时会显示模拟数据。
+构建需要 Android NDK，然后执行：
 
-```json
-{
-  "timestamp": "2026-07-22T12:00:00.000Z",
-  "source": { "mode": "live", "csv_path": "/data/vendor/battery/battery-log-*.csv" },
-  "device": { "market_name": "OnePlus", "build_id": "..." },
-  "battery": { "level": 72, "voltage_mv": 4388, "current_ma": 6950, "temperature_c": 35.2, "health_pct": 98, "status": "充电中" },
-  "charging": { "usb_online": true, "usb_voltage_mv": 9990, "usb_current_ma": 6500, "power_w": 64.9, "fast_charge_type": "SUPERVOOC", "eta": "18分钟" },
-  "thermals": { "usb_c": 33.4, "vooc_c": 37.8, "cpu_c": 43.6, "gpu_c": 41.3, "shell_c": 34.7 },
-  "statistics": { "current_max_a": 8.4, "power_avg_w": 62.7 },
-  "watchdog": { "capacity_stalled": false, "remaining_seconds": 123 },
-  "raw": { "battery_rm": "3512", "battery_fcc": "4500", "chip_soc": "72", "csv.any_vendor_field": "..." }
-}
+```powershell
+$ndk = "$env:LOCALAPPDATA\Android\Sdk\ndk\29.0.13113456"
+
+cmake -S native -B native/build/android-arm64 `
+  -DCMAKE_TOOLCHAIN_FILE="$ndk\build\cmake\android.toolchain.cmake" `
+  -DANDROID_ABI=arm64-v8a `
+  -DANDROID_PLATFORM=android-26 `
+  -DCMAKE_BUILD_TYPE=Release
+
+cmake --build native/build/android-arm64 --parallel
 ```
+
+将生成的 `chg_daemon` 放入 `bin/` 后，从仓库根目录打包模块文件即可。CI 会自动完成
+这一步。
+
+## 📌 设备调试
+
+WebUI 的原始数据区会显示实际读取的节点和值。验证快充时，重点关注：
+
+- `charging.power_source`：`ppschg_power`、`usb_voltage_current` 或
+  `battery_cell_estimate`。
+- `charging.usb_current_source`：当前输入电流来源。
+- `raw.usb_online_standard`、`raw.usb_voltage_present`、`raw.usb_protocol_active`：
+  USB 在线状态的判定信号。
+
+如果设备有更可靠的厂商输入电流节点，可为 daemon 增加：
+
+```text
+--input-current-node /sys/已验证的节点路径
+```
+
+也可以用 `--ppschg-unit uw` 或 `--ppschg-unit mw` 覆盖 PPS 功率单位的自动判断。

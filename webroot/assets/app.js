@@ -21,7 +21,7 @@
       source: { mode: "mock", csv_path: "/data/vendor/battery/battery-log-demo.csv" },
       battery: { level: 72, voltage_mv: 4388, current_ma: Math.round(current * 1000), temperature_c: temperature, health_pct: 98, status: "充电中" },
       charging: { usb_online: true, usb_voltage_mv: 9990, usb_current_ma: Math.round(power * 1000 / 9.99), power_w: power, fast_charge_type: "SUPERVOOC" },
-      thermals: { usb_c: 33.4 + Math.sin(phase) * .8, vooc_c: 37.8 + Math.sin(phase) * .7, cpu_c: 43.6 + Math.sin(phase / 2) * 2, gpu_c: 41.3 + Math.sin(phase / 2.4) * 1.7, shell_c: 34.7 + Math.sin(phase / 1.5) * .9 },
+      thermals: { battery_c: temperature, usb_c: 33.4 + Math.sin(phase) * .8, vooc_c: 37.8 + Math.sin(phase) * .7, cpu_c: 43.6 + Math.sin(phase / 2) * 2, gpu_c: 41.3 + Math.sin(phase / 2.4) * 1.7, shell_c: 34.7 + Math.sin(phase / 1.5) * .9 },
       raw: { battery_rm: "3512", battery_fcc: "4500", design_capacity: "4880", battery_soh: "98", chip_soc: "72", gauge_soc: "72", fast_chg_type: "SUPERVOOC", svooc_flag: "1", usb_online: "1", csv_sample: "mock fallback" }
     };
   };
@@ -44,7 +44,7 @@
     const power = number(charging.power_w, number(payload.power_w));
     const current = number(battery.current_ma, number(payload.current_ma));
     const voltage = number(battery.voltage_mv, number(payload.voltage_mv));
-    const temperature = number(battery.temperature_c, number(payload.battery_temp_c));
+    const temperature = number(thermals.battery_c, number(battery.temperature_c, number(payload.battery_temp_c)));
 
     el("charge-status").textContent = battery.status || (charging.usb_online ? "充电中" : "未充电");
     el("battery-level").textContent = fmt(number(battery.level), 0, "%");
@@ -67,7 +67,7 @@
   }
 
   function renderThermals(thermals) {
-    const labels = { usb_c: "USB", vooc_c: "VOOC", cpu_c: "CPU", gpu_c: "GPU", shell_c: "Shell" };
+    const labels = { battery_c: "电池", usb_c: "USB", vooc_c: "VOOC", cpu_c: "CPU", gpu_c: "GPU", shell_c: "Shell" };
     el("thermal-grid").innerHTML = Object.entries(labels).map(([key, label]) => {
       const temp = number(thermals[key]);
       return `<div class="thermal-card ${temp !== null && temp >= 45 ? "hot" : ""}"><span>${label}</span><strong>${fmt(temp)} C</strong></div>`;

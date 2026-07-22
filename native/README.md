@@ -28,6 +28,8 @@ packing the KernelSU ZIP. The module starts it with
 --interval 5                 Online polling interval in seconds.
 --offline-interval 10        Polling interval without USB power.
 --state-file /absolute/path  Atomically write the JSON snapshot to this file.
+--input-current-node /path   Optional verified vendor input-current node; defaults to usb/current_now.
+--ppschg-unit auto|uw|mw     ppschg_power unit override; default auto records its chosen scale.
 --cell-type 1                Use the dual-cell current multiplier from the reference script.
 --capacity-timeout 123       Capacity-stall watchdog timeout.
 --offline-action slow|exit   Default: slow polling; exit matches the script.
