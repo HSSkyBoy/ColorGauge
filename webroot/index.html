@@ -21,7 +21,7 @@
     </header>
 
     <section class="status-strip" aria-label="充电状态">
-      <span class="status-pill" id="charge-status">充电中</span>
+      <span class="status-pill" id="charge-status">等待数据</span>
       <span class="status-item">电量 <strong id="battery-level">--%</strong></span>
       <span class="status-item">快充 <strong id="fast-charge">--</strong></span>
       <span class="status-item">更新于 <strong id="updated-at">--:--:--</strong></span>
@@ -36,7 +36,7 @@
       <article class="metric">
         <p>电池电流</p>
         <strong id="current">--</strong><span>A</span>
-        <small>正值 = 充电</small>
+        <small>正值表示充电</small>
       </article>
       <article class="metric">
         <p>电池电压</p>
@@ -73,7 +73,10 @@
             <p class="eyebrow">厂商 CSV 与 SysFS</p>
             <h2>原始数据</h2>
           </div>
-          <label class="search"><span class="sr-only">筛选原始数据</span><input id="raw-search" type="search" placeholder="筛选键名"></label>
+          <label class="search">
+            <span class="sr-only">筛选原始数据</span>
+            <input id="raw-search" type="search" placeholder="筛选键名">
+          </label>
         </div>
         <div class="raw-list" id="raw-list"></div>
       </section>

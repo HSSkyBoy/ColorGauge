@@ -1,7 +1,7 @@
 #!/system/bin/sh
 
 MODDIR=${0%/*}
-PID_FILE="$MODDIR/run/chg_daemon.pid"
+PID_FILE="$MODDIR/run/collector.pid"
 
 if [ -f "$PID_FILE" ]; then
   OPULSE_PID=$(cat "$PID_FILE")

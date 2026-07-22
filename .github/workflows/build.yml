@@ -9,16 +9,9 @@ on:
 permissions:
   contents: read
 
-env:
-  NDK_VERSION: 29.0.13113456
-  ANDROID_BUILD_TOOLS: 36.1.0
-  ANDROID_PLATFORM: "36"
-  ANDROID_ABI: arm64-v8a
-  ANDROID_MIN_API: "26"
-
 jobs:
-  build-arm64:
-    name: Build module
+  build:
+    name: Package module
     runs-on: ubuntu-latest
 
     steps:
@@ -27,37 +20,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Android NDK
-        shell: bash
-        run: |
-          # sdkmanager closes stdin after its prompts; ignore yes receiving SIGPIPE.
-          set +e
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses
-          sdkmanager_status="${PIPESTATUS[1]}"
-          set -e
-          test "${sdkmanager_status}" -eq 0
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
-            "ndk;${NDK_VERSION}" \
-            "build-tools;${ANDROID_BUILD_TOOLS}" \
-            "platforms;android-${ANDROID_PLATFORM}" \
-            --channel=3
-
-      - name: Configure native build
-        shell: bash
-        run: |
-          cmake -S native -B native/build/android-arm64 \
-            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_HOME/ndk/${NDK_VERSION}/build/cmake/android.toolchain.cmake" \
-            -DANDROID_ABI="${ANDROID_ABI}" \
-            -DANDROID_PLATFORM="android-${ANDROID_MIN_API}" \
-            -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build and verify arm64 daemon
-        shell: bash
-        run: |
-          cmake --build native/build/android-arm64 --parallel
-          test -f native/build/android-arm64/chg_daemon
-          readelf -h native/build/android-arm64/chg_daemon | grep -q "AArch64"
-
       - name: Assemble KernelSU module ZIP
         id: package
         shell: bash
@@ -65,22 +27,23 @@ jobs:
           commit_count="$(git rev-list --count HEAD)"
           version="$(sed -n 's/^version=//p' module.prop)"
           package_dir="dist/package"
-          archive="dist/O-Pulse-${version}-arm64-v8a.zip"
+          archive="dist/O-Pulse-${version}.zip"
 
-          mkdir -p "${package_dir}/bin" "${package_dir}/webroot"
+          mkdir -p "${package_dir}/webroot"
           sed \
             -e "s/^versionCode=.*/versionCode=${commit_count}/" \
             module.prop > "${package_dir}/module.prop"
-          install -m 0755 customize.sh service.sh uninstall.sh "${package_dir}/"
+
+          install -m 0755 collector.sh customize.sh service.sh uninstall.sh "${package_dir}/"
           install -m 0644 skip_mount "${package_dir}/skip_mount"
-          install -m 0755 native/build/android-arm64/chg_daemon "${package_dir}/bin/chg_daemon"
           cp -a webroot/. "${package_dir}/webroot/"
 
           (
             cd "${package_dir}"
             zip -r "../../${archive}" .
           )
-          echo "artifact_name=O-Pulse-${version}-arm64-v8a" >> "$GITHUB_OUTPUT"
+
+          echo "artifact_name=O-Pulse-${version}" >> "$GITHUB_OUTPUT"
           echo "archive=${archive}" >> "$GITHUB_OUTPUT"
 
       - name: Upload installable module
