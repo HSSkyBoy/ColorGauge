@@ -24,6 +24,8 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install Android NDK
         shell: bash
@@ -62,12 +64,15 @@ jobs:
         id: package
         shell: bash
         run: |
+          commit_count="$(git rev-list --count HEAD)"
           version="$(sed -n 's/^version=//p' module.prop)"
           package_dir="dist/package"
           archive="dist/O-Pulse-${version}-arm64-v8a.zip"
 
           mkdir -p "${package_dir}/bin" "${package_dir}/webroot"
-          install -m 0644 module.prop "${package_dir}/module.prop"
+          sed \
+            -e "s/^versionCode=.*/versionCode=${commit_count}/" \
+            module.prop > "${package_dir}/module.prop"
           install -m 0755 customize.sh service.sh uninstall.sh "${package_dir}/"
           install -m 0644 skip_mount "${package_dir}/skip_mount"
           install -m 0755 native/build/android-arm64/chg_daemon "${package_dir}/bin/chg_daemon"
