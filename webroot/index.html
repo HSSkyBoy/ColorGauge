@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#12100d">
+  <title>O-Pulse</title>
+  <link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div>
+        <p class="eyebrow">Oplus 遥测控制台</p>
+        <h1>O-Pulse</h1>
+      </div>
+      <div class="connection" id="connection" aria-live="polite">
+        <span class="signal"></span>
+        <span id="connection-text">正在准备数据流</span>
+      </div>
+    </header>
+
+    <section class="status-strip" aria-label="充电状态">
+      <span class="status-pill" id="charge-status">充电中</span>
+      <span class="status-item">电量 <strong id="battery-level">--%</strong></span>
+      <span class="status-item">快充 <strong id="fast-charge">--</strong></span>
+      <span class="status-item">更新于 <strong id="updated-at">--:--:--</strong></span>
+    </section>
+
+    <section class="metrics" aria-label="实时功率数据">
+      <article class="metric feature">
+        <p>输入功率</p>
+        <strong id="power">--</strong><span>W</span>
+        <small id="power-note">正在等待采集器</small>
+      </article>
+      <article class="metric">
+        <p>电池电流</p>
+        <strong id="current">--</strong><span>A</span>
+        <small>正值 = 充电</small>
+      </article>
+      <article class="metric">
+        <p>电池电压</p>
+        <strong id="voltage">--</strong><span>V</span>
+        <small id="usb-voltage">USB -- V</small>
+      </article>
+      <article class="metric heat">
+        <p>电池温度</p>
+        <strong id="battery-temp">--</strong><span>C</span>
+        <small id="thermal-state">温控状态暂不可用</small>
+      </article>
+    </section>
+
+    <section class="panel chart-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">最近五分钟</p>
+          <h2>充电脉冲</h2>
+        </div>
+        <div class="legend"><span class="power-key"></span>功率 <span class="temp-key"></span>电池温度</div>
+      </div>
+      <canvas id="pulse-chart" role="img" aria-label="功率与电池温度历史曲线"></canvas>
+    </section>
+
+    <section class="lower-grid">
+      <section class="panel thermal-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">温控区域</p>
+            <h2>温度场</h2>
+          </div>
+        </div>
+        <div class="thermal-grid" id="thermal-grid"></div>
+      </section>
+
+      <section class="panel raw-panel">
+        <div class="panel-heading raw-heading">
+          <div>
+            <p class="eyebrow">厂商 CSV 与 SysFS</p>
+            <h2>原始数据</h2>
+          </div>
+          <label class="search"><span class="sr-only">筛选原始数据</span><input id="raw-search" type="search" placeholder="筛选键名"></label>
+        </div>
+        <div class="raw-list" id="raw-list"></div>
+      </section>
+    </section>
+  </main>
+  <script src="assets/app.js"></script>
+</body>
+</html>
