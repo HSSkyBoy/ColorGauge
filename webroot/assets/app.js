@@ -1,9 +1,9 @@
 (() => {
   const history = [];
   const maxHistory = 150;
-  let socket;
-  let retryMs = 1000;
   let mockTimer;
+  let pollTimer;
+  let requestInFlight = false;
   let activePayload;
 
   const el = (id) => document.getElementById(id);
@@ -131,24 +131,39 @@
 
   function stopMock() { clearInterval(mockTimer); mockTimer = null; }
 
-  function connect() {
-    if (!window.WebSocket) return startMock();
-    setConnection("正在连接本地采集器", false);
-    try { socket = new WebSocket("ws://127.0.0.1:28888"); } catch (_) { startMock(); return scheduleReconnect(); }
-    socket.onopen = () => { stopMock(); retryMs = 1000; setConnection("实时采集器已连接", true); };
-    socket.onmessage = (event) => { try { render(JSON.parse(event.data)); } catch (_) { setConnection("采集器返回了无效 JSON", false); } };
-    socket.onerror = () => socket.close();
-    socket.onclose = () => { startMock(); scheduleReconnect(); };
+  function kernelSuExec(command) {
+    const bridge = window.ksu?.exec || window.kernelsu?.exec;
+    if (!bridge) return Promise.reject(new Error("KernelSU Shell bridge unavailable"));
+    return Promise.resolve(bridge(command)).then((result) => {
+      if (typeof result === "string") return result;
+      if (result?.errno && result.errno !== 0) throw new Error(result.stderr || "Shell command failed");
+      return result?.stdout ?? result?.output ?? "";
+    });
   }
 
-  function scheduleReconnect() {
-    const wait = retryMs;
-    retryMs = Math.min(retryMs * 2, 30000);
-    setTimeout(connect, wait);
+  async function pollState() {
+    if (requestInFlight) return;
+    requestInFlight = true;
+    try {
+      const raw = await kernelSuExec("cat /data/adb/modules/o_pulse/run/state.json");
+      const payload = JSON.parse(raw.trim());
+      stopMock();
+      setConnection("实时采集器已连接", true);
+      render(payload);
+    } catch (_) {
+      startMock();
+    } finally {
+      requestInFlight = false;
+    }
+  }
+
+  function startPolling() {
+    pollState();
+    pollTimer = setInterval(pollState, 2000);
   }
 
   el("raw-search").addEventListener("input", () => renderRaw({ ...activePayload?.raw, "battery.level": value(activePayload, "battery", "level"), "battery.health_pct": value(activePayload, "battery", "health_pct"), "charging.usb_online": value(activePayload, "charging", "usb_online"), "source.csv_path": activePayload?.source?.csv_path }));
   window.addEventListener("resize", drawChart);
   startMock();
-  connect();
+  startPolling();
 })();

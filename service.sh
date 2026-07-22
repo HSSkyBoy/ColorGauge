@@ -26,5 +26,5 @@ if [ -f "$PID_FILE" ] && is_running "$(cat "$PID_FILE")"; then
 fi
 
 rm -f "$PID_FILE"
-"$DAEMON_BIN" --listen 127.0.0.1:28888 >/dev/null 2>&1 &
+"$DAEMON_BIN" --state-file "$RUNDIR/state.json" --interval 5 --offline-interval 10 >/dev/null 2>&1 &
 echo $! > "$PID_FILE"
