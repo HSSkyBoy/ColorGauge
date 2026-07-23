@@ -1,8 +1,11 @@
 package com.nkbe.opulse
 
 import android.content.Context
+import android.util.Log
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 
 data class ShellResult(val exitCode: Int, val output: String) {
     val isSuccess: Boolean get() = exitCode == 0
@@ -10,6 +13,8 @@ data class ShellResult(val exitCode: Int, val output: String) {
 
 class RootShell(private val context: Context) {
     companion object {
+        private const val TAG = "O-Pulse"
+        private const val COMMAND_TIMEOUT_SECONDS = 8L
         private const val ROOT_DIR = "/data/adb/opulse"
         private const val SCRIPT = "$ROOT_DIR/collector.sh"
         private const val STATE = "$ROOT_DIR/state.json"
@@ -77,9 +82,20 @@ class RootShell(private val context: Context) {
     fun execute(command: String): ShellResult {
         return try {
             val process = startRoot(command)
-            val output = process.inputStream.bufferedReader().use { it.readText() }
-            ShellResult(process.waitFor(), output.trim())
+            val output = StringBuilder()
+            val reader = thread(isDaemon = true, name = "opulse-root-output") {
+                process.inputStream.bufferedReader().use { output.append(it.readText()) }
+            }
+            if (!process.waitFor(COMMAND_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                process.destroyForcibly()
+                reader.join(1000)
+                Log.e(TAG, "Root command timed out")
+                return ShellResult(-1, "Root command timed out")
+            }
+            reader.join(1000)
+            ShellResult(process.exitValue(), output.toString().trim())
         } catch (error: Exception) {
+            Log.e(TAG, "Root command failed", error)
             ShellResult(-1, error.message ?: "Root shell unavailable")
         }
     }
