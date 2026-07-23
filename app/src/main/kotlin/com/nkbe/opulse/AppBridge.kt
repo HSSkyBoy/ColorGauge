@@ -9,10 +9,14 @@ class AppBridge(private val shell: RootShell) {
     @JavascriptInterface
     @Synchronized
     fun exec(command: String): String {
-        val started = shell.ensureCollector(forceRestart = !collectorInitialized)
-        if (!started.isSuccess) return result(started)
-        collectorInitialized = true
-        return result(shell.execute(command))
+        return try {
+            val started = shell.ensureCollector(forceRestart = !collectorInitialized)
+            if (!started.isSuccess) return result(started)
+            collectorInitialized = true
+            result(shell.execute(command))
+        } catch (error: Exception) {
+            result(ShellResult(-1, error.message ?: "Root bridge unavailable"))
+        }
     }
 
     private fun result(shellResult: ShellResult): String {

@@ -17,6 +17,7 @@ class MainActivity : Activity() {
         webView.settings.domStorageEnabled = true
         webView.settings.allowFileAccess = true
         webView.webViewClient = WebViewClient()
+        if (BuildConfig.DEBUG) WebView.setWebContentsDebuggingEnabled(true)
         webView.addJavascriptInterface(AppBridge(RootShell(this)), "opulse")
         setContentView(webView)
         webView.loadUrl("file:///android_asset/webroot/index.html")

@@ -19,29 +19,33 @@ class RootShell(private val context: Context) {
     private fun quote(value: String): String = "'${value.replace("'", "'\\''")}'"
 
     fun ensureCollector(forceRestart: Boolean = false): ShellResult {
-        val localScript = File(context.filesDir, "collector.sh")
-        context.assets.open("collector.sh").use { input ->
-            localScript.outputStream().use { output -> input.copyTo(output) }
-        }
+        return try {
+            val localScript = File(context.filesDir, "collector.sh")
+            context.assets.open("collector.sh").use { input ->
+                localScript.outputStream().use { output -> input.copyTo(output) }
+            }
 
-        val command = """
-            mkdir -p $ROOT_DIR
-            mkdir -p $ROOT_DIR/run
-            collector_pid="${'$'}(cat $PID 2>/dev/null)"
-            if [ "${forceRestart}" = "false" ] && [ -f $SCRIPT ] && [ -n "${'$'}collector_pid" ] && kill -0 "${'$'}collector_pid" 2>/dev/null && [ -r "/proc/${'$'}collector_pid/cmdline" ] && tr '\000' ' ' < "/proc/${'$'}collector_pid/cmdline" | grep -Fq "$SCRIPT"; then
-                exit 0
-            fi
-            if [ "${forceRestart}" = "true" ] && [ -n "${'$'}collector_pid" ] && kill -0 "${'$'}collector_pid" 2>/dev/null && [ -r "/proc/${'$'}collector_pid/cmdline" ] && tr '\000' ' ' < "/proc/${'$'}collector_pid/cmdline" | grep -Fq "$SCRIPT"; then
-                kill "${'$'}collector_pid" 2>/dev/null || true
-                sleep 1
-            fi
-            rm -f $PID
-            cp ${quote(localScript.absolutePath)} $SCRIPT
-            chmod 0755 $SCRIPT
-            nohup /system/bin/sh $SCRIPT --state-file $STATE --interval 3 >> $LOG 2>&1 &
-            echo ${'$'}! > $PID
-        """.trimIndent()
-        return execute(command)
+            val command = """
+                mkdir -p $ROOT_DIR
+                mkdir -p $ROOT_DIR/run
+                collector_pid="${'$'}(cat $PID 2>/dev/null)"
+                if [ "${forceRestart}" = "false" ] && [ -f $SCRIPT ] && [ -n "${'$'}collector_pid" ] && kill -0 "${'$'}collector_pid" 2>/dev/null && [ -r "/proc/${'$'}collector_pid/cmdline" ] && tr '\000' ' ' < "/proc/${'$'}collector_pid/cmdline" | grep -Fq "$SCRIPT"; then
+                    exit 0
+                fi
+                if [ "${forceRestart}" = "true" ] && [ -n "${'$'}collector_pid" ] && kill -0 "${'$'}collector_pid" 2>/dev/null && [ -r "/proc/${'$'}collector_pid/cmdline" ] && tr '\000' ' ' < "/proc/${'$'}collector_pid/cmdline" | grep -Fq "$SCRIPT"; then
+                    kill "${'$'}collector_pid" 2>/dev/null || true
+                    sleep 1
+                fi
+                rm -f $PID
+                cp ${quote(localScript.absolutePath)} $SCRIPT
+                chmod 0755 $SCRIPT
+                nohup /system/bin/sh $SCRIPT --state-file $STATE --interval 3 >> $LOG 2>&1 &
+                echo ${'$'}! > $PID
+            """.trimIndent()
+            execute(command)
+        } catch (error: Exception) {
+            ShellResult(-1, error.message ?: "Collector setup failed")
+        }
     }
 
     fun readState(): ShellResult = execute("cat $STATE")
