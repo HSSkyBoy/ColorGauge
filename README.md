@@ -18,7 +18,7 @@ O-Pulse 是一个独立的 Kotlin Android 应用程式，用来查看 Oplus 装�
 
 ## 建置
 
-需要 JDK 21、Gradle 8.14.14 与 Kotlin 2.4.10-RC：
+需要 JDK 21、Gradle 8.14.4 与 Kotlin 2.4.10-RC：
 
 ```powershell
 gradle assembleDebug
