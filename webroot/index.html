@@ -11,27 +11,27 @@
   <main class="shell">
     <header class="masthead">
       <div>
-        <p class="eyebrow">Oplus 遥测控制台</p>
+        <p class="eyebrow">Oplus 充电监控台</p>
         <h1>O-Pulse</h1>
       </div>
       <div class="connection" id="connection" aria-live="polite">
         <span class="signal"></span>
-        <span id="connection-text">正在准备数据流</span>
+        <span id="connection-text">正在读取采集器状态</span>
       </div>
     </header>
 
     <section class="status-strip" aria-label="充电状态">
-      <span class="status-pill" id="charge-status">等待数据</span>
+      <span class="status-pill" id="charge-status">等待资料</span>
       <span class="status-item">电量 <strong id="battery-level">--%</strong></span>
       <span class="status-item">快充 <strong id="fast-charge">--</strong></span>
       <span class="status-item">更新于 <strong id="updated-at">--:--:--</strong></span>
     </section>
 
-    <section class="metrics" aria-label="实时功率数据">
+    <section class="metrics" aria-label="实时功率资料">
       <article class="metric feature">
         <p>输入功率</p>
         <strong id="power">--</strong><span>W</span>
-        <small id="power-note">正在等待采集器</small>
+        <small id="power-note">等待采集器</small>
       </article>
       <article class="metric">
         <p>电池电流</p>
@@ -61,7 +61,7 @@
         <div class="panel-heading">
           <div>
             <p class="eyebrow">温控区域</p>
-            <h2>温度场</h2>
+            <h2>温度地图</h2>
           </div>
         </div>
         <div class="thermal-grid" id="thermal-grid"></div>
@@ -71,10 +71,10 @@
         <div class="panel-heading raw-heading">
           <div>
             <p class="eyebrow">厂商 CSV 与 SysFS</p>
-            <h2>原始数据</h2>
+            <h2>原始资料</h2>
           </div>
           <label class="search">
-            <span class="sr-only">筛选原始数据</span>
+            <span class="sr-only">筛选原始资料</span>
             <input id="raw-search" type="search" placeholder="筛选键名">
           </label>
         </div>

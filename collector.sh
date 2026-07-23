@@ -1,7 +1,6 @@
 #!/system/bin/sh
 
-# Compatibility collector. The native daemon is preferred by service.sh, but
-# this script keeps the module usable when a device has no bundled binary.
+# O-Pulse Shell collector. The Kotlin App launches this script with Root.
 
 MODDIR=${0%/*}
 RUNDIR="$MODDIR/run"

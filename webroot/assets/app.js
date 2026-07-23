@@ -2,13 +2,8 @@
   const history = [];
   const maxHistory = 150;
   const maxStateAgeMs = 25000;
-  const moduleRoot = (() => {
-    const path = window.location?.pathname || "";
-    const marker = "/webroot/";
-    const index = path.indexOf(marker);
-    return index >= 0 ? path.slice(0, index) : "/data/adb/modules/o_pulse";
-  })();
-  const statePath = `${moduleRoot}/run/state.json`;
+  const moduleRoot = "/data/adb/opulse";
+  const statePath = `${moduleRoot}/state.json`;
   const logPath = `${moduleRoot}/run/collector.log`;
   let activePayload = null;
   let requestInFlight = false;
@@ -177,13 +172,12 @@
   }
 
   function kernelSuExec(command) {
-    const bridgeOwner = window.ksu?.exec ? window.ksu : window.kernelsu?.exec ? window.kernelsu : null;
-    if (!bridgeOwner) return Promise.reject(new Error("KernelSU shell bridge unavailable"));
-    return Promise.resolve(bridgeOwner.exec(command)).then((result) => {
-      if (typeof result === "string") return result;
-      if (result?.errno && result.errno !== 0) throw new Error(result.stderr || "command failed");
-      return result?.stdout ?? result?.output ?? "";
-    });
+    if (window.opulse?.exec) {
+      const result = JSON.parse(window.opulse.exec(command));
+      if (result.errno && result.errno !== 0) throw new Error(result.stderr || "Root command failed");
+      return Promise.resolve(result.stdout || "");
+    }
+    return Promise.reject(new Error("App root bridge unavailable"));
   }
 
   async function tryReadLog() {

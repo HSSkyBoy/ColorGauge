@@ -1,1 +1,6 @@
 /.idea
+/.gradle
+/build
+/app/build
+/app/src/main/assets/collector.sh
+/app/src/main/assets/webroot

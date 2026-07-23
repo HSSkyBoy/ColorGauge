@@ -1,6 +1,0 @@
-id=o_pulse
-name=O-Pulse
-version=v0.3.0
-versionCode=30
-author=NkBe
-description=Oplus charging power, battery, thermal and CSV monitor with a native C++ collector.
