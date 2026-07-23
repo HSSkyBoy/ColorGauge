@@ -8,12 +8,13 @@ plugins {
 
 android {
     namespace = "top.nkbe.opulse"
-    compileSdk = 37
+    compileSdk = 36
+    buildToolsVersion = "36.1.0"
 
     defaultConfig {
         applicationId = "top.nkbe.opulse"
         minSdk = 26
-        targetSdk = 37
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
     }
