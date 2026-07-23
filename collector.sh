@@ -10,7 +10,7 @@ CELL_TYPE=1
 
 read_node() {
   value=$(cat "$1" 2>/dev/null)
-  [ -n "$value" ] && printf '%s' "$value" || printf '%s' "${2:-N/A}"
+  [ -n "$value" ] && printf '%s' "$value" || printf '%s' "${2-N/A}"
 }
 
 json_escape() {
@@ -21,50 +21,49 @@ json_string() { printf '"%s"' "$(json_escape "$1")"; }
 
 json_num() {
   awk -v value="$1" 'BEGIN {
-    if (value == "" || value == "N/A" || value == "--") print "null";
-    else if (value ~ /^[-+]?[0-9]+([.][0-9]+)?$/) print value;
-    else print "null";
+    if (value !~ /^[-+]?[0-9]+([.][0-9]+)?$/) print "null";
+    else print value;
   }'
 }
 
 scale() {
   awk -v value="$1" -v divisor="$2" 'BEGIN {
-    if (value == "" || value == "N/A" || value == "--") print "null";
+    if (value !~ /^[-+]?[0-9]+([.][0-9]+)?$/ || divisor == 0) print "null";
     else printf "%.2f", value / divisor;
   }'
 }
 
 absolute_current() {
   awk -v value="$1" -v cells="$2" 'BEGIN {
-    if (value == "" || value == "N/A" || value == "--") print "null";
+    if (value !~ /^[-+]?[0-9]+([.][0-9]+)?$/ || cells !~ /^[0-9]+([.][0-9]+)?$/) print "null";
     else { if (value < 0) value = -value; printf "%.2f", value * cells / 1000; }
   }'
 }
 
 usb_current() {
   awk -v value="$1" 'BEGIN {
-    if (value == "" || value == "N/A" || value == "--") print "null";
+    if (value !~ /^[-+]?[0-9]+([.][0-9]+)?$/) print "null";
     else { if (value < 0) value = -value; if (value >= 10000) printf "%.2f", value / 1000000; else printf "%.2f", value / 1000; }
   }'
 }
 
 multiply() {
   awk -v left="$1" -v right="$2" 'BEGIN {
-    if (left == "null" || right == "null" || left == "" || right == "") print "null";
+    if (left !~ /^[-+]?[0-9]+([.][0-9]+)?$/ || right !~ /^[-+]?[0-9]+([.][0-9]+)?$/) print "null";
     else printf "%.2f", left * right;
   }'
 }
 
 percent() {
   awk -v left="$1" -v right="$2" 'BEGIN {
-    if (left == "" || right == "" || right == 0 || left == "N/A" || right == "N/A") print "null";
+    if (left !~ /^[-+]?[0-9]+([.][0-9]+)?$/ || right !~ /^[-+]?[0-9]+([.][0-9]+)?$/ || right == 0) print "null";
     else printf "%.2f", left * 100 / right;
   }'
 }
 
 thermal_celsius() {
   awk -v value="$1" 'BEGIN {
-    if (value == "" || value == "0") print "null";
+    if (value !~ /^[-+]?[0-9]+([.][0-9]+)?$/ || value == "0") print "null";
     else if (value > 1000 || value < -1000) printf "%.2f", value / 1000;
     else printf "%.2f", value / 100;
   }'
@@ -173,7 +172,10 @@ while true; do
   gpu_temp_c=$(thermal_celsius "$gpu_temp")
   shell_temp_c=$(thermal_celsius "$shell_temp")
   full=false
-  [ "$notify_code" != "0" ] && full=true
+  full=$(awk -v value="$capacity" 'BEGIN {
+    if (value ~ /^[-+]?[0-9]+([.][0-9]+)?$/ && value >= 100) print "true";
+    else print "false";
+  }')
   if [ "$usb_online" = "1" ]; then offline_samples=0; else offline_samples=$((offline_samples + 1)); fi
 
   if [ "$rm_mah" != "$last_rm" ]; then last_rm="$rm_mah"; changed_at=$now; fi

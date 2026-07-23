@@ -13,12 +13,12 @@ class RootShell(private val context: Context) {
         private const val SCRIPT = "$ROOT_DIR/collector.sh"
         private const val STATE = "$ROOT_DIR/state.json"
         private const val PID = "$ROOT_DIR/collector.pid"
-        private const val LOG = "$ROOT_DIR/collector.log"
+        private const val LOG = "$ROOT_DIR/run/collector.log"
     }
 
     private fun quote(value: String): String = "'${value.replace("'", "'\\''")}'"
 
-    fun ensureCollector(): ShellResult {
+    fun ensureCollector(forceRestart: Boolean = false): ShellResult {
         val localScript = File(context.filesDir, "collector.sh")
         context.assets.open("collector.sh").use { input ->
             localScript.outputStream().use { output -> input.copyTo(output) }
@@ -26,12 +26,18 @@ class RootShell(private val context: Context) {
 
         val command = """
             mkdir -p $ROOT_DIR
-            cp ${quote(localScript.absolutePath)} $SCRIPT
-            chmod 0755 $SCRIPT
-            if [ -f $PID ] && kill -0 "${'$'}(cat $PID 2>/dev/null)" 2>/dev/null; then
+            mkdir -p $ROOT_DIR/run
+            collector_pid="${'$'}(cat $PID 2>/dev/null)"
+            if [ "${forceRestart}" = "false" ] && [ -f $SCRIPT ] && [ -n "${'$'}collector_pid" ] && kill -0 "${'$'}collector_pid" 2>/dev/null && [ -r "/proc/${'$'}collector_pid/cmdline" ] && tr '\000' ' ' < "/proc/${'$'}collector_pid/cmdline" | grep -Fq "$SCRIPT"; then
                 exit 0
             fi
+            if [ "${forceRestart}" = "true" ] && [ -n "${'$'}collector_pid" ] && kill -0 "${'$'}collector_pid" 2>/dev/null && [ -r "/proc/${'$'}collector_pid/cmdline" ] && tr '\000' ' ' < "/proc/${'$'}collector_pid/cmdline" | grep -Fq "$SCRIPT"; then
+                kill "${'$'}collector_pid" 2>/dev/null || true
+                sleep 1
+            fi
             rm -f $PID
+            cp ${quote(localScript.absolutePath)} $SCRIPT
+            chmod 0755 $SCRIPT
             nohup /system/bin/sh $SCRIPT --state-file $STATE --interval 3 >> $LOG 2>&1 &
             echo ${'$'}! > $PID
         """.trimIndent()

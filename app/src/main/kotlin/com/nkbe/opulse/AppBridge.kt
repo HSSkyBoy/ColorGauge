@@ -4,17 +4,14 @@ import android.webkit.JavascriptInterface
 import org.json.JSONObject
 
 class AppBridge(private val shell: RootShell) {
-    @Volatile
-    private var collectorReady = false
+    private var collectorInitialized = false
 
     @JavascriptInterface
     @Synchronized
     fun exec(command: String): String {
-        if (!collectorReady) {
-            val started = shell.ensureCollector()
-            if (!started.isSuccess) return result(started)
-            collectorReady = true
-        }
+        val started = shell.ensureCollector(forceRestart = !collectorInitialized)
+        if (!started.isSuccess) return result(started)
+        collectorInitialized = true
         return result(shell.execute(command))
     }
 
