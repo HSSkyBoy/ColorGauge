@@ -2,6 +2,7 @@ package com.nkbe.opulse
 
 import android.content.Context
 import java.io.File
+import java.io.IOException
 
 data class ShellResult(val exitCode: Int, val output: String) {
     val isSuccess: Boolean get() = exitCode == 0
@@ -14,6 +15,13 @@ class RootShell(private val context: Context) {
         private const val STATE = "$ROOT_DIR/state.json"
         private const val PID = "$ROOT_DIR/collector.pid"
         private const val LOG = "$ROOT_DIR/run/collector.log"
+        private val ROOT_BINARIES = listOf(
+            "/system/bin/su",
+            "/system/xbin/su",
+            "/data/adb/ksu/bin/su",
+            "/data/adb/sukisu/bin/su",
+            "su",
+        )
     }
 
     private fun quote(value: String): String = "'${value.replace("'", "'\\''")}'"
@@ -52,11 +60,23 @@ class RootShell(private val context: Context) {
 
     fun readLog(): ShellResult = execute("tail -n 8 $LOG")
 
+    private fun startRoot(command: String): Process {
+        var lastError: Exception? = null
+        for (binary in ROOT_BINARIES) {
+            try {
+                return ProcessBuilder(binary, "-c", command)
+                    .redirectErrorStream(true)
+                    .start()
+            } catch (error: Exception) {
+                lastError = error
+            }
+        }
+        throw lastError ?: IOException("Root binary unavailable")
+    }
+
     fun execute(command: String): ShellResult {
         return try {
-            val process = ProcessBuilder("su", "-c", command)
-                .redirectErrorStream(true)
-                .start()
+            val process = startRoot(command)
             val output = process.inputStream.bufferedReader().use { it.readText() }
             ShellResult(process.waitFor(), output.trim())
         } catch (error: Exception) {
