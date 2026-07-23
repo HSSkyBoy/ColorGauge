@@ -1,6 +1,6 @@
 id=o_pulse
-name=O-Pulse - Oplus Power and Thermal Monitor
-version=v0.2.0
-versionCode=20
-author=Neko
-description=Oplus 设备充电功率、电池、温区与 CSV 日志实时监控 WebUI 模块，默认使用纯 Shell 采集器。
+name=O-Pulse
+version=v0.3.0
+versionCode=30
+author=NkBe
+description=Oplus charging power, battery, thermal and CSV monitor with a native C++ collector.
