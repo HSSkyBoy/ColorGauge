@@ -10,7 +10,7 @@ O-Pulse 是一个独立的 Kotlin Android 应用程式，用来查看 Oplus 装�
 1. 启动 App，KernelSU 或 Magisk 会显示 Root 授权提示。
 2. App 将 `collector.sh` 储存到 `/data/adb/opulse/`。
 3. App 以 Root 权限在背景启动 Shell 采集器。
-4. WebView 每 4 秒读取 `/data/adb/opulse/state.json` 并更新介面。
+4. Miuix 原生 Compose 介面每 3 秒直接從 Root shell 讀取 `/data/adb/opulse/state.json`，不使用 WebView。
 
 采集器保留原始脚本的读取方式：电池与 USB SysFS 节点、充电功率、电流、
 电压、电量、健康度、温度区域、统计资料和厂商电池 CSV。不同 Oplus 装置
